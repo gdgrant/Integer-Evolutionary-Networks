@@ -1,2 +1,2 @@
-# Integer-Evolutionary-Networks
-Further evolutionary network research, now with more integers
+# Evolutionary-Networks
+Developing neural network architectures using genetic algorithms
