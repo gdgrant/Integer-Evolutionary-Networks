@@ -63,7 +63,7 @@ par = {
 
     'survival_rate'         : 0.10,
     'mutation_rate'         : 0.25,
-    'mutation_strength'     : 0.80,
+    'mutation_strength'     : 2,
     'cross_rate'            : 0.25,
 
     'task'                  : 'oic',
