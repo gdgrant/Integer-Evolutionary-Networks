@@ -1,5 +1,6 @@
 import numpy as np
 from itertools import product
+from math import trunc
 print('\n--> Loading parameters...')
 
 global par
@@ -84,10 +85,8 @@ par = {
 
     'survival_rate'         : 0.10,
     'mutation_rate'         : 0.25,
-    'mutation_strength'     : 0.80,
-    'cross_rate'            : 0.01,
-    'use_crossing'          : False,
-    'loss_baseline'         : 10.,
+    'mutation_strength'     : 2,
+    'cross_rate'            : 0.25,
 
     'task'                  : 'dms',
     'kappa'                 : 2.0,
@@ -118,22 +117,24 @@ def update_dependencies():
     par['n_input'] = par['num_motion_tuned']*par['num_receptive_fields'] + par['num_fix_tuned'] + par['num_rule_tuned']
     par['n_EI'] = int(par['n_hidden']*par['EI_prop'])
 
-    par['h_init_init']  = 0.1*np.ones([par['n_networks'],1,par['n_hidden']], dtype=np.float32)
-    par['W_in_init']    = np.random.gamma(par['input_gamma'], size=[par['n_networks'], par['n_input'], par['n_hidden']]).astype(np.float32)
-    par['W_rnn_init']   = np.random.gamma(par['rnn_gamma'], size=[par['n_networks'], par['n_hidden'], par['n_hidden']]).astype(np.float32)
-    par['W_out_init']   = np.random.gamma(par['output_gamma'], size=[par['n_networks'], par['n_hidden'], par['n_output']]).astype(np.float32)
+    par['h_init_init']  = np.zeros([par['n_networks'],1,par['n_hidden']]).astype(np.int8)
+    par['W_in_init']    = np.minimum(np.random.exponential(scale=par['rnn_exponential'], size=[par['n_networks'], par['n_hidden'], par['n_output']]).astype(np.int8), 127)
+
+    par['W_out_init']   = np.minimum(np.random.exponential(scale=par['rnn_exponential'], size=[par['n_networks'], par['n_hidden'], par['n_output']]).astype(np.int8), 127)
+    par['W_rnn_init']   = np.minimum(np.random.exponential(scale=par['rnn_exponential'], size=[par['n_networks'], par['n_hidden'], par['n_output']]).astype(np.int8), 127)
+    # par['W_rnn_init']   = np.float16(np.random.gamma(shape=par['rnn_gamma'], scale=1., size=[par['n_networks'], par['n_hidden'], par['n_hidden']]))
 
     if par['balance_EI']:
-        par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']] = np.random.gamma(2*par['rnn_gamma'], size=par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']].shape).astype(np.float32)
-        par['W_rnn_init'][:,:par['n_EI'],par['n_EI']:] = np.random.gamma(2*par['rnn_gamma'], size=par['W_rnn_init'][:,:par['n_EI'],par['n_EI']:].shape).astype(np.float32)
+        par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']] = np.random.exponential(scale=2*par['rnn_exponential'], size=par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']].shape).astype(np.int8)
+        par['W_rnn_init'][:,:par['n_EI'],par['n_EI']:] = np.random.exponential(scale=2*par['rnn_exponential'], size=par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']].shape).astype(np.int8)
 
-    par['b_rnn_init']   = np.zeros([par['n_networks'], 1, par['n_hidden']], dtype=np.float32)
-    par['b_out_init']   = np.zeros([par['n_networks'], 1, par['n_output']], dtype=np.float32)
+    par['b_rnn_init']   = np.zeros([par['n_networks'], 1, par['n_hidden']]).astype(np.int8)
+    par['b_out_init']   = np.zeros([par['n_networks'], 1, par['n_output']]).astype(np.int8)
 
     par['W_rnn_mask']   = 1 - np.eye(par['n_hidden'])[np.newaxis,:,:]
     par['W_rnn_init']  *= par['W_rnn_mask']
 
-    par['EI_vector']    = np.ones(par['n_hidden'], dtype=np.float32)
+    par['EI_vector']    = np.ones(par['n_hidden']).astype(np.int8)
     par['EI_vector'][par['n_EI']:] *= -1
     par['EI_mask']      = np.diag(par['EI_vector'])[np.newaxis,:,:]
 
@@ -207,7 +208,7 @@ def update_dependencies():
         par['latency_matrix'] = np.random.uniform(par['latency_min']//par['dt'], par['latency_max']//par['dt'], \
             size=[par['n_hidden'], par['n_hidden']]).astype(np.int8)
 
-        par['latency_mask'] = np.zeros([par['max_latency'], par['n_hidden'], par['n_hidden']]).astype(np.float32)
+        par['latency_mask'] = np.zeros([par['max_latency'], par['n_hidden'], par['n_hidden']]).astype(np.int8)
         for i, j in product(range(par['n_hidden']), range(par['n_hidden'])):
             par['latency_mask'][par['latency_matrix'][i,j],i,j] = 1.
 

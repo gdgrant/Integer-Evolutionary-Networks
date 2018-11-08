@@ -129,6 +129,13 @@ def mutate(var, num, rate, scale, epsilon=0.):
     mutation = cp.random.normal(loc=epsilon, scale=scale, size=[num, *var.shape])
     return var[cp.newaxis,...] + mutation*mutation_mask
 
+def mutate_integers(var, num, rate, scale, epsilon):
+    """ Mutates a given integer variable by a given rate and scale,
+        generating as many offspring as num """
+    mutation_mask = cp.random.random(size=[num, *var.shape], dtype=np.float32).astype(cp.int8)
+    mutation = np.clip(cp.random.normal(loc=0, scale=par['mutation_strength'], size=[num, *var.shape]), -127, 127).astype(np.int8)
+    return var[cp.newaxis,...] + mutation*mutation_mask
+
 
 ### Reporting functions
 
