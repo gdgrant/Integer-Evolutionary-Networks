@@ -6,10 +6,26 @@ global par
 par = {
 
     'save_dir'              : './savedir/',
-    'save_fn'               : 'testing_spiking',
-    'cell_type'             : 'adex',    # 'rate', 'LIF', 'adex'
+    'save_fn'               : 'rate_dms_t02_a0999',
+    'iters_per_output'      : 1,
+
+    'batch_size'            : 256,
+    'iterations'            : 100001,
+
+    'learning_method'       : 'TA',     # Evo search = 'ES', genetic = 'GA', thermal = 'TA'
+    'cell_type'             : 'rate',   # 'rate', 'adex'
     'use_stp'               : True,
-    'iters_per_output'      : 5,
+    'use_adam'              : True,     # Only for 'ES'
+
+    'temperature'           : 0.2,
+    'temperature_decay'     : 0.999,
+
+    'ES_learning_rate'      : 0.005,
+    'ES_sigma'              : 0.02,
+
+    'local_learning'        : False,
+    'local_learning_vars'   : ['W_out', 'b_out'],
+    'local_learning_rate'   : 0.005,
 
     'EI_prop'               : 0.8,
     'balance_EI'            : True,
@@ -17,62 +33,70 @@ par = {
     'inh_model'             : 'cNA',
     'current_divider'       : 3e6,
 
-    'use_latency'           : True,
+    'use_latency'           : False,
     'latency_min'           : 5,
     'latency_max'           : 20,
 
     'freq_cost'             : 1e-4,
     'freq_target'           : 0.,
 
+    'reciprocal_cost'       : 0.,
+    'reciprocal_threshold'  : 3.,
+    'reciprocal_max'        : 0.2,
+
     'use_weight_momentum'   : False,
     'momentum_scale'        : 1.,
 
-    'n_networks'            : 500,
+    'adam_beta1'            : 0.9,
+    'adam_beta2'            : 0.999,
+    'adam_epsilon'          : 1e-8,
+
+    'n_networks'            : 5001,
     'n_hidden'              : 100,
     'n_output'              : 3,
 
     'num_motion_tuned'      : 24,
-    'num_fix_tuned'         : 2,
-    'num_rule_tuned'        : 2,
+    'num_fix_tuned'         : 0,
+    'num_rule_tuned'        : 0,
     'num_receptive_fields'  : 1,
     'num_motion_dirs'       : 8,
 
-    'batch_size'            : 128,
-    'iterations'            : 1001,
+    'input_gamma'           : 0.08,
+    'rnn_gamma'             : 0.04,
+    'output_gamma'          : 0.08,
+    'noise_rnn_sd'          : 0.2,
+    'noise_in_sd'           : 0.1,
 
-    'input_gamma'           : 0.2,
-    'rnn_gamma'             : 0.025,
-    'noise_rnn_sd'          : 0.05,
-    'noise_in_sd'           : 0.05,
+    'dt'                    : 20,
+    'membrane_constant'     : 100,
+    'output_constant'       : 20,
 
-    'dt'                    : 1,
-    'membrane_constant'     : 20,
-    'output_constant'       : 40,
+    'tau_fast'              : 200,
+    'tau_slow'              : 1500,
 
     'dead_time'             : 100,
     'fix_time'              : 200,
     'sample_time'           : 200,
     'delay_time'            : 300,
     'test_time'             : 200,
-    'mask_time'             : 50,
-
-    'tau_fast'              : 200,
-    'tau_slow'              : 1500,
+    'mask_time'             : 40,
+    'fixation_on'           : False,
 
     'survival_rate'         : 0.10,
     'mutation_rate'         : 0.25,
     'mutation_strength'     : 0.80,
-    'cross_rate'            : 0.25,
-
-    'task'                  : 'oic',
-    'kappa'                 : 2.0,
-    'tuning_height'         : 20.0,
-    'response_multiplier'   : 10.0,
-    'num_rules'             : 1,
-
+    'cross_rate'            : 0.01,
+    'use_crossing'          : False,
     'loss_baseline'         : 10.,
 
+    'task'                  : 'dms',
+    'kappa'                 : 2.0,
+    'tuning_height'         : 4.0,
+    'response_multiplier'   : 4.0,
+    'num_rules'             : 1,
+
 }
+
 
 def update_parameters(updates):
     for k in updates.keys():
@@ -83,51 +107,54 @@ def update_parameters(updates):
 
 def update_dependencies():
 
+    par['n_networks'] += 1 if par['learning_method'] == 'ES' \
+        and par['n_networks']%2 == 0 else 0
+
+    par['use_adam'] = par['use_adam'] and par['learning_method'] == 'ES'
+
     par['trial_length'] = par['dead_time'] + par['fix_time'] + +par['sample_time'] + par['delay_time'] + par['test_time']
     par['num_time_steps'] = par['trial_length'] // par['dt']
 
     par['n_input'] = par['num_motion_tuned']*par['num_receptive_fields'] + par['num_fix_tuned'] + par['num_rule_tuned']
     par['n_EI'] = int(par['n_hidden']*par['EI_prop'])
 
-    par['h_init_init']  = 0.1*np.ones([par['n_networks'],1,par['n_hidden']], dtype=np.float16)
-    par['W_in_init']    = np.float16(np.random.gamma(shape=par['input_gamma'], scale=1., size=[par['n_networks'], par['n_input'], par['n_hidden']]))
-    par['W_out_init']   = np.float16(np.random.gamma(shape=par['input_gamma'], scale=1., size=[par['n_networks'], par['n_hidden'], par['n_output']]))
-    par['W_rnn_init']   = np.float16(np.random.gamma(shape=par['rnn_gamma'], scale=1., size=[par['n_networks'], par['n_hidden'], par['n_hidden']]))
+    par['h_init_init']  = 0.1*np.ones([par['n_networks'],1,par['n_hidden']], dtype=np.float32)
+    par['W_in_init']    = np.random.gamma(par['input_gamma'], size=[par['n_networks'], par['n_input'], par['n_hidden']]).astype(np.float32)
+    par['W_rnn_init']   = np.random.gamma(par['rnn_gamma'], size=[par['n_networks'], par['n_hidden'], par['n_hidden']]).astype(np.float32)
+    par['W_out_init']   = np.random.gamma(par['output_gamma'], size=[par['n_networks'], par['n_hidden'], par['n_output']]).astype(np.float32)
 
     if par['balance_EI']:
-        par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']] = np.float16(np.random.gamma(shape=2*par['rnn_gamma'], scale=1., size=par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']].shape))
-        par['W_rnn_init'][:,:par['n_EI'],par['n_EI']:] = np.float16(np.random.gamma(shape=2*par['rnn_gamma'], scale=1., size=par['W_rnn_init'][:,:par['n_EI'],par['n_EI']:].shape))
+        par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']] = np.random.gamma(2*par['rnn_gamma'], size=par['W_rnn_init'][:,par['n_EI']:,:par['n_EI']].shape).astype(np.float32)
+        par['W_rnn_init'][:,:par['n_EI'],par['n_EI']:] = np.random.gamma(2*par['rnn_gamma'], size=par['W_rnn_init'][:,:par['n_EI'],par['n_EI']:].shape).astype(np.float32)
 
-    par['b_rnn_init']   = np.zeros([par['n_networks'], 1, par['n_hidden']], dtype=np.float16)
-    par['b_out_init']   = np.zeros([par['n_networks'], 1, par['n_output']], dtype=np.float16)
+    par['b_rnn_init']   = np.zeros([par['n_networks'], 1, par['n_hidden']], dtype=np.float32)
+    par['b_out_init']   = np.zeros([par['n_networks'], 1, par['n_output']], dtype=np.float32)
 
     par['W_rnn_mask']   = 1 - np.eye(par['n_hidden'])[np.newaxis,:,:]
     par['W_rnn_init']  *= par['W_rnn_mask']
 
-    par['EI_vector']    = np.ones(par['n_hidden'], dtype=np.float16)
+    par['EI_vector']    = np.ones(par['n_hidden'], dtype=np.float32)
     par['EI_vector'][par['n_EI']:] *= -1
     par['EI_mask']      = np.diag(par['EI_vector'])[np.newaxis,:,:]
 
-    par['threshold_init'] = 0.5*np.ones([par['n_networks'],1,par['n_hidden']], dtype=np.float16)
-    par['reset_init']     = np.zeros([par['n_networks'],1,par['n_hidden']], dtype=np.float16)
+    par['y_init_shape'] = [par['num_time_steps'], par['n_networks'], par['batch_size'], par['n_output']]
 
     par['dt_sec']       = par['dt']/1000
-    par['alpha_neuron'] = np.float16(par['dt']/par['membrane_constant'])
-    par['beta_neuron']  = np.float16(par['dt']/par['output_constant'])
-    par['noise_rnn']    = np.float16(np.sqrt(2*par['alpha_neuron'])*par['noise_rnn_sd'])
-    par['noise_in']     = np.float16(np.sqrt(2/par['alpha_neuron'])*par['noise_rnn_sd'])
+    par['alpha_neuron'] = np.float32(par['dt']/par['membrane_constant'])
+    par['beta_neuron']  = np.float32(par['dt']/par['output_constant'])
+    par['noise_rnn']    = np.float32(np.sqrt(2*par['alpha_neuron'])*par['noise_rnn_sd'])
+    par['noise_in']     = np.float32(np.sqrt(2/par['alpha_neuron'])*par['noise_rnn_sd'])
 
-    par['num_survivors'] = int(par['n_networks'] * par['survival_rate'])
-
+    par['num_survivors'] = int(par['n_networks'] * par['survival_rate']) if par['learning_method'] in ['GA', 'TA'] else 1
 
     ### Synaptic plasticity
     if par['use_stp']:
-        par['alpha_stf']  = np.ones((1, 1, par['n_hidden']), dtype=np.float16)
-        par['alpha_std']  = np.ones((1, 1, par['n_hidden']), dtype=np.float16)
-        par['U']          = np.ones((1, 1, par['n_hidden']), dtype=np.float16)
+        par['alpha_stf']  = np.ones((1, 1, par['n_hidden']), dtype=np.float32)
+        par['alpha_std']  = np.ones((1, 1, par['n_hidden']), dtype=np.float32)
+        par['U']          = np.ones((1, 1, par['n_hidden']), dtype=np.float32)
 
-        par['syn_x_init'] = np.zeros((1, 1, par['n_hidden']), dtype=np.float16)
-        par['syn_u_init'] = np.zeros((1, 1, par['n_hidden']), dtype=np.float16)
+        par['syn_x_init'] = np.zeros((1, 1, par['n_hidden']), dtype=np.float32)
+        par['syn_u_init'] = np.zeros((1, 1, par['n_hidden']), dtype=np.float32)
 
         for i in range(0,par['n_hidden'],2):
             par['alpha_stf'][0,0,i] = par['dt']/par['tau_slow']
@@ -183,6 +210,8 @@ def update_dependencies():
         par['latency_mask'] = np.zeros([par['max_latency'], par['n_hidden'], par['n_hidden']]).astype(np.float32)
         for i, j in product(range(par['n_hidden']), range(par['n_hidden'])):
             par['latency_mask'][par['latency_matrix'][i,j],i,j] = 1.
+
+        par['state_buffer_shape'] = [par['max_latency'], par['n_networks'], par['batch_size'], par['n_hidden']]
 
 
 update_dependencies()

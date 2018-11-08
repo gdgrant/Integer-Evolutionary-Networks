@@ -61,6 +61,15 @@ double_neurons = {
     'mutation_strength' : 0.40
 }
 
+quad_neurons = {
+    'iterations'        : 10001,
+    'task'              : 'dms',
+    'save_fn'           : 'quad_neurons_dms_v1',
+    'n_hidden'          : 400,
+    'batch_size'        : 64,
+    'mutation_strength' : 0.40
+}
+
 output_constant = {
     'iterations'      : 10001,
     'task'            : 'dms',
@@ -71,13 +80,71 @@ output_constant = {
 base_model = {
     'iterations'          : 10001,
     'task'                : 'dms',
-    'save_fn'             : 'momentum_nocross_dms_v0',
-    'output_constant'     : 80,
+    'save_fn'             : 'standard_model_dms_v2',
     'use_weight_momentum' : True,
-    'momentum_scale'      : 1.,
-    'mutation_rate'       : 0.75,
-    'mutation_strength'   : 0.40,
-    'cross_rate'          : 0.
+    'n_hidden'            : 400,
+    'batch_size'          : 64,
+    'freq_cost'           : 1e-3,
 }
 
-try_model(double_neurons)
+evo_model = {
+    'iterations'          : 200001,
+    'cell_type'           : 'rate',
+    'membrane_constant'   : 100,
+    'task'                : 'dms',
+    'learning_method'     : 'ES',
+    'ES_learning_rate'    : 0.002,
+    'ES_sigma'            : 0.01,
+    'save_fn'             : 'evo_model_dms_out_der_NN10_lr002_si01_v0',
+    'n_hidden'            : 100,
+    'dt'                  : 20,
+    'use_latency'         : False,
+    'output_constant'     : 20,
+    'batch_size'          : 256,
+    'freq_cost'           : 1e-4,
+    'freq_cost'           : 0.,
+    'reciprocal_cost'     : 0.,
+    'tuning_height'       : 4.,
+    'response_multiplier' : 1,
+    'n_networks'          : 2001,
+    'delay_time'          : 300,
+}
+
+evo_model_adex = {
+    'iterations'          : 51,
+    'task'                : 'dms',
+    'learning_method'     : 'ES',
+    'ES_learning_rate'    : 0.0001,
+    'ES_sigma'            : 0.01,
+    'save_fn'             : 'evo_model_dms_v0',
+    'n_hidden'            : 100,
+    'batch_size'          : 128,
+    'freq_cost'           : 1e-3,
+    'n_networks'          : 1001,
+}
+
+
+def evo_model_sweep():
+    updates = evo_model
+
+    lr = [1e-4, 1e-3, 1e-2]
+    es = [1e-3, 1e-2, 1e-1]
+
+    from itertools import product
+
+    for j in range(5):
+        for (il, l), (ie, e) in product(enumerate(lr), enumerate(es)):
+            updates['ES_learning_rate'] = l
+            updates['ES_sigma']         = e
+
+            updates['save_fn'] = 'evo_dms_adex_lr{}_es{}_v{}'.format(il, ie, j)
+
+            try_model(updates)
+
+
+
+
+
+#evo_model_sweep()
+#quit()
+try_model(evo_model)
